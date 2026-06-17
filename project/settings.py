@@ -67,7 +67,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'project.wsgi.application'
 
-# ── MongoDB handled in models.py ────
+# ── Database (SQLite for sessions/auth — MongoDB is in models.py) ────────────
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+# ── MongoDB handled in app/models.py ────────────────────────────────────────
 
 # ── Password validation ─────────────
 AUTH_PASSWORD_VALIDATORS = [
@@ -105,15 +113,30 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 
 # ── CORS / CSRF ──────────────────────
-cors_origins = os.environ.get("DJANGO_CORS_ORIGINS", "")
-CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins.split(",") if o]
+_cors_env = os.environ.get("DJANGO_CORS_ORIGINS", "")
+_cors_list = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
+# Always include localhost origins so local dev never breaks
+_localhost_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+CORS_ALLOWED_ORIGINS = _cors_list if _cors_list else _localhost_origins
 
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+# CSRF trusted origins must include both CORS origins AND the backend host itself
+CSRF_TRUSTED_ORIGINS = list(set(CORS_ALLOWED_ORIGINS + [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]))
 
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False    # must be False so JS can read it
+SESSION_COOKIE_HTTPONLY = True
 
 # ── Security (production only) ───────
 if not DEBUG:

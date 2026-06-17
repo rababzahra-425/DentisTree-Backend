@@ -1,16 +1,34 @@
 import os
 from mongoengine import connect, Document, StringField, DateTimeField, ReferenceField, FloatField, IntField, EmailField, ListField
 import datetime, json
-# from datetime import datetime
 
-# Connect to MongoDB Atlas
-# Using direct shard hostnames to bypass local DNS resolution issues with +srv URIs.
-# If your DNS is fixed, you can revert to the +srv URI:
-#   host="mongodb+srv://rababzahra:Rabab%407272@dentalclinic.vgo1spa.mongodb.net/Dentistree_Dental_Clinic?retryWrites=true&w=majority"
-connect(
-    db=os.environ.get("MONGO_DB_NAME"),
-    host=os.environ.get("MONGO_HOST")
-)
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    load_dotenv(Path(__file__).resolve().parent.parent / 'project' / '.env')
+except ImportError:
+    pass
+
+# ── Connect to MongoDB Atlas ─────────────────────────────────────────────────
+# Reads MONGO_URI from environment. Falls back to the direct-shard connection
+# string (DNS-safe) if MONGO_URI is not set.
+# _mongo_uri = os.environ.get(
+#     'MONGO_URI',
+#     (
+#         "mongodb://rababzahra:Rabab%407272@"
+#         "ac-jdokr6e-shard-00-00.vgo1spa.mongodb.net:27017,"
+#         "ac-jdokr6e-shard-00-01.vgo1spa.mongodb.net:27017,"
+#         "ac-jdokr6e-shard-00-02.vgo1spa.mongodb.net:27017"
+#         "/Dentistree_Dental_Clinic"
+#         "?ssl=true&replicaSet=atlas-q0sy1a-shard-0&authSource=admin&retryWrites=true&w=majority"
+#     )
+# )
+# connect(host=_mongo_uri)
+_mongo_uri = os.environ.get('MONGO_URI')
+if not _mongo_uri:
+    raise ValueError("Critical Error: MONGO_URI environment variable is not set!")
+connect(host=_mongo_uri)
+
 
 # -----------------------
 # Service Model

@@ -338,7 +338,13 @@ def create_appointment(request):
             if not service_obj:
                 return JsonResponse({"error": "Service ID is invalid"}, status=404)
 
-            # 3. Find or create patient
+            # 3. Date parsing — do this before any DB write so an invalid
+            #    date can't leave behind an orphaned patient record
+            tz         = pytz.timezone("Asia/Karachi")
+            naive_date = datetime.strptime(data.get("date"), "%Y-%m-%d %H:%M")
+            aware_date = tz.localize(naive_date)
+
+            # 4. Find or create patient
             patient = Patient.objects(phone=clean_phone).first()
 
             if not patient:
@@ -354,11 +360,6 @@ def create_appointment(request):
                 patient.save()
 
             assigned_serial = patient.patient_serial or 1
-
-            # 4. Date parsing
-            tz         = pytz.timezone("Asia/Karachi")
-            naive_date = datetime.datetime.strptime(data.get("date"), "%Y-%m-%d %H:%M")
-            aware_date = tz.localize(naive_date)
 
             # 5. Create appointment — FIX: set patient reference
             appointment = Appointment(
@@ -404,10 +405,13 @@ def create_appointment(request):
                 {"error": "Invalid date format. Use YYYY-MM-DD HH:MM (e.g. 2026-04-03 14:30)"},
                 status=400
             )
-        except Exception as e:
+        except Exception:
             import traceback
-            print(traceback.format_exc())  # This prints full traceback in Django console
-            return JsonResponse({"error": str(e), "traceback": traceback.format_exc()}, status=500)
+            print(traceback.format_exc())  # full traceback to server logs only
+            return JsonResponse(
+                {"error": "Something went wrong creating the appointment."},
+                status=500,
+            )
 
     return JsonResponse({"error": "Only POST allowed"}, status=405)
 
@@ -2145,7 +2149,7 @@ def adjust_stock(request, id):
         else:
             return JsonResponse({"error": "action must be 'add' or 'reduce'"}, status=400)
  
-        item.updated_at = datetime.datetime.utcnow()
+        item.updated_at = datetime.utcnow()
         item.save()
 
 # ADD THIS — stock reduction is the most common low-stock trigger
@@ -2189,7 +2193,7 @@ def delete_inventory_item(request, id):
  
 def financial_report(request):
     try:
-        today = datetime.datetime.utcnow()
+        today = datetime.utcnow()
  
         def get_month_data(year, month):
             start = datetime(year, month, 1)
@@ -2675,7 +2679,7 @@ def get_financial_summary(request):
     - Net profit
     """
     try:
-        month = request.GET.get("month") or datetime.datetime.utcnow().strftime("%Y-%m")
+        month = request.GET.get("month") or datetime.utcnow().strftime("%Y-%m")
  
         # ── 1. Auto: Total salary — only employees with salary_status="Paid" ──
         active_employees = Employee.objects(status="Active")
@@ -2801,11 +2805,11 @@ def financial_report(request):
     try:
         # ── 1. Resolve target month ───────────────────────────────
         month_param = request.GET.get("month", "")
-        today = datetime.datetime.utcnow()
+        today = datetime.utcnow()
 
         if month_param:
             try:
-                target = datetime.datetime.strptime(month_param, "%Y-%m")
+                target = datetime.strptime(month_param, "%Y-%m")
             except ValueError:
                 return JsonResponse({"error": "Invalid month format. Use YYYY-MM"}, status=400)
         else:
@@ -3980,7 +3984,7 @@ def update_prescription(request, id):
             if appt:
                 rx.appointment = appt
 
-        rx.updated_at = datetime.datetime.utcnow()
+        rx.updated_at = datetime.utcnow()
         rx.save()
 
         return JsonResponse({"message": "Prescription updated"})
@@ -4134,7 +4138,7 @@ def update_treatment(request, id):
             if appt:
                 tx.appointment = appt
 
-        tx.updated_at = datetime.datetime.utcnow()
+        tx.updated_at = datetime.utcnow()
         tx.save()
 
         return JsonResponse({"message": "Treatment record updated"})
@@ -4353,7 +4357,7 @@ def update_billing(request, id):
         if "service_name" in data: b.service_name = data["service_name"].strip()
         if "notes"        in data: b.notes        = data["notes"].strip()
  
-        b.updated_at = datetime.datetime.utcnow()
+        b.updated_at = datetime.utcnow()
         b.save()
         _recalc_balances(b.patient)
         return JsonResponse({"message": "Billing record updated"})
@@ -4460,7 +4464,7 @@ def update_installment(request, id):
             appt = Appointment.objects(id=data["appointment_id"]).first()
             if appt: inst.appointment = appt
  
-        inst.updated_at = datetime.datetime.utcnow()
+        inst.updated_at = datetime.utcnow()
         inst.save()
  
         # Recalculate all balances

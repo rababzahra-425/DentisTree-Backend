@@ -114,7 +114,7 @@ class GalleryImage(Document):
 
 class Patient(Document):
     name = StringField(required=True)
-    email = EmailField(required=True)
+    email = EmailField(required=False)
     phone = StringField()
     created_at = DateTimeField(default=datetime.datetime.utcnow)
     patient_serial = IntField()

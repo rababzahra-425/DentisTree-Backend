@@ -25,3 +25,8 @@ A comprehensive backend system for managing dental clinic operations, built with
 ## Purpose
 
 This backend powers the Dentis Tree Dental Clinic Management System by providing secure APIs and business logic for managing clinic operations.
+
+```
+source venv/bin/activate
+nohup gunicorn project.wsgi:application --bind 127.0.0.1:8005 --workers 3 > gunicorn.log 2>&1 &
+```

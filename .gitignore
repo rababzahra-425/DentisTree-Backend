@@ -15,6 +15,7 @@ env/
 db.sqlite3
 media/
 staticfiles/
+core
 
 # Environment variables — NEVER commit these
 project/.env

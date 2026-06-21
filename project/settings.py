@@ -15,7 +15,7 @@ _secret = os.environ.get('DJANGO_SECRET_KEY', '')
 if not _secret:
     raise RuntimeError(
         "DJANGO_SECRET_KEY is not set. "
-        "Add it to project/project/.env or as an environment variable."
+        "Add it to DentisTree-Backend/project/.env or as an environment variable."
     )
 SECRET_KEY = _secret
 

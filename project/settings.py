@@ -20,9 +20,12 @@ if not _secret:
 SECRET_KEY = _secret
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
-
-_allowed = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
-ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()]
+# _allowed = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
+# ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()]
+_allowed_env = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+_allowed_list = [h.strip() for h in _allowed_env.split(',') if h.strip()]
+_localhost_hosts = ['localhost', '127.0.0.1', '[::1]']
+ALLOWED_HOSTS = list(set(_allowed_list + _localhost_hosts))
 
 # ── Apps ─────────────────────────────
 INSTALLED_APPS = [
@@ -106,7 +109,9 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
+EMAIL_USE_SSL = False
 EMAIL_USE_TLS = True
+EMAIL_TIMEOUT = 30
 
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
@@ -116,15 +121,18 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 _cors_env = os.environ.get("DJANGO_CORS_ORIGINS", "")
 _cors_list = [o.strip() for o in _cors_env.split(",") if o.strip()]
 
-# Always include localhost origins so local dev never breaks
+# Always include localhost origins so local dev never breaks across any dev port
 _localhost_origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
+    #     "http://localhost:5173",
+    # "http://localhost:5174",
+    # "http://127.0.0.1:5173",
+    # "http://127.0.0.1:5174",
+    f"http://{host}:{port}"
+    for host in ("localhost", "127.0.0.1")
+    for port in range(5173, 5190)
 ]
-CORS_ALLOWED_ORIGINS = _cors_list if _cors_list else _localhost_origins
-
+CORS_ALLOWED_ORIGINS = list(set(_cors_list + _localhost_origins))
+# CORS_ALLOWED_ORIGINS = _cors_list if _cors_list else _localhost_origins
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF trusted origins must include both CORS origins AND the backend host itself

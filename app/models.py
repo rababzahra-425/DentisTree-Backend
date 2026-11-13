@@ -393,8 +393,8 @@ class UserProfile(Document):
     notif_inventory        = BooleanField(default=True)
     notif_reports          = BooleanField(default=False)
     notif_system_alerts    = BooleanField(default=True)
-    notif_staff_updates    = BooleanField(default=False)
-    notif_invoices         = BooleanField(default=True)
+    # notif_staff_updates    = BooleanField(default=False)
+    # notif_invoices         = BooleanField(default=True)
  
     # ── Django role mirrors ───────────────────────────────────────────────
     is_superuser = BooleanField(default=False)
@@ -454,7 +454,7 @@ OTP_PURPOSE_CHOICES = [
     ("email_verify", "Email Verification"),
     ("phone_verify", "Phone Verification"),
 ]
- 
+
 class OTPCode(Document):
     user_id    = StringField(max_length=64, required=True, db_field="user_id")
     purpose    = StringField(max_length=20, choices=[c[0] for c in OTP_PURPOSE_CHOICES], required=True)
@@ -462,7 +462,7 @@ class OTPCode(Document):
     is_used    = BooleanField(default=False)
     expires_at = DateTimeField(required=True)
     created_at = DateTimeField(default=datetime.utcnow)
- 
+
     meta = {
         'collection': 'otp_codes',
         'indexes': [
@@ -471,7 +471,7 @@ class OTPCode(Document):
             ('user_id', 'purpose', 'is_used'),
         ]
     }
- 
+
     @classmethod
     def generate(cls, user_id: str, purpose: str, length: int = 6, ttl_minutes: int = 10):
         cls.objects(user_id=user_id, purpose=purpose, is_used=False).update(is_used=True)
@@ -484,7 +484,7 @@ class OTPCode(Document):
         )
         otp.save()
         return otp
- 
+
     @classmethod
     def verify(cls, user_id: str, purpose: str, code: str) -> bool:
         try:
@@ -498,7 +498,7 @@ class OTPCode(Document):
         otp.is_used = True
         otp.save()
         return True
- 
+
     def __str__(self):
         return f"OTP({self.purpose}, user={self.user_id}, used={self.is_used})"
  

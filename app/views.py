@@ -1,4 +1,4 @@
-﻿from django.http import JsonResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 import json
@@ -14,6 +14,191 @@ from .notification_utils import (
     notify_new_review,
     notify_low_inventory,
 )
+
+
+# =======================
+# EMAIL HELPERS
+# =======================
+
+import time as _time
+
+def _send_email_with_retry(msg, max_retries=3):
+    """Send an EmailMultiAlternatives message, retrying on connection failure."""
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            msg.send(fail_silently=False)
+            return  # success
+        except Exception as err:
+            last_err = err
+            print(f"EMAIL SEND attempt {attempt + 1}/{max_retries} failed: {err}")
+            if attempt < max_retries - 1:
+                _time.sleep(2)
+    raise last_err
+
+
+def _send_admin_booking_email(appointment):
+    """
+    Send a notification email to the admin when a patient books
+    a new appointment from the website.
+    """
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings
+
+    admin_email = getattr(settings, "EMAIL_HOST_USER", None)
+    if not admin_email:
+        print("ADMIN EMAIL SKIP: EMAIL_HOST_USER not configured")
+        return
+
+    patient_name   = appointment.patient_name or "Unknown Patient"
+    patient_email  = appointment.patient_email or "Not provided"
+    patient_phone  = appointment.patient_phone or "Not provided"
+    service_name   = appointment.service_name or "Dental Consultation"
+
+    try:
+        import pytz as _pytz
+        _PKT = _pytz.timezone("Asia/Karachi")
+        _dt  = appointment.date
+        if _dt.tzinfo is None:
+            _dt = _pytz.utc.localize(_dt)
+        date_str = _dt.astimezone(_PKT).strftime("%A, %d %B %Y at %I:%M %p")
+    except Exception:
+        date_str = str(appointment.date) if appointment.date else "Not specified"
+
+    FROM_EMAIL   = "DentisTree Dental Clinic <dentistreeclinic123@gmail.com>"
+    CLINIC_NAME  = "DentisTree Dental Clinic"
+    subject      = f"New Appointment Booking — {CLINIC_NAME}"
+
+    plain = (
+        f"New appointment booked!\n\n"
+        f"Patient Name : {patient_name}\n"
+        f"Email        : {patient_email}\n"
+        f"Phone        : {patient_phone}\n"
+        f"Service      : {service_name}\n"
+        f"Date & Time  : {date_str}\n\n"
+        f"Please review this appointment in the admin panel."
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:16px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);max-width:600px;width:100%;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#1d4ed8 0%,#0d9488 100%);
+                     padding:36px 40px;text-align:center;">
+            <div style="font-size:40px;margin-bottom:10px;">&#128197;</div>
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;
+                       letter-spacing:-0.3px;">{CLINIC_NAME}</h1>
+            <p style="margin:6px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">
+              New Appointment Booking
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:28px 40px 0;">
+            <span style="display:inline-block;background:#1d4ed81a;color:#1d4ed8;
+                         border:1.5px solid #1d4ed840;border-radius:30px;
+                         padding:7px 22px;font-size:13px;font-weight:700;
+                         letter-spacing:0.05em;">NEW BOOKING</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 40px 32px;">
+            <p style="margin:0 0 18px;font-size:15px;color:#1e293b;">
+              A new appointment has been booked by a patient.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f8fafc;border:1px solid #e2e8f0;
+                          border-radius:12px;margin:24px 0;overflow:hidden;">
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+                  <span style="font-size:11px;font-weight:700;color:#94a3b8;
+                               text-transform:uppercase;letter-spacing:0.06em;">
+                    Patient Name
+                  </span><br/>
+                  <span style="font-size:14px;font-weight:600;color:#0f172a;">
+                    {patient_name}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+                  <span style="font-size:11px;font-weight:700;color:#94a3b8;
+                               text-transform:uppercase;letter-spacing:0.06em;">
+                    Email
+                  </span><br/>
+                  <span style="font-size:14px;font-weight:600;color:#0f172a;">
+                    {patient_email}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+                  <span style="font-size:11px;font-weight:700;color:#94a3b8;
+                               text-transform:uppercase;letter-spacing:0.06em;">
+                    Phone
+                  </span><br/>
+                  <span style="font-size:14px;font-weight:600;color:#0f172a;">
+                    {patient_phone}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+                  <span style="font-size:11px;font-weight:700;color:#94a3b8;
+                               text-transform:uppercase;letter-spacing:0.06em;">
+                    Service
+                  </span><br/>
+                  <span style="font-size:14px;font-weight:600;color:#0f172a;">
+                    {service_name}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;">
+                  <span style="font-size:11px;font-weight:700;color:#94a3b8;
+                               text-transform:uppercase;letter-spacing:0.06em;">
+                    Date &amp; Time
+                  </span><br/>
+                  <span style="font-size:14px;font-weight:600;color:#0f172a;">
+                    {date_str}
+                  </span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-size:13.5px;color:#64748b;line-height:1.6;">
+              Please review and respond to this appointment in the admin panel.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8fafc;border-top:1px solid #e2e8f0;
+                     padding:20px 40px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">
+              {CLINIC_NAME}<br/>
+              This is an automated notification for new bookings.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=plain,
+        from_email=FROM_EMAIL,
+        to=[admin_email],
+    )
+    msg.attach_alternative(html, "text/html")
+    _send_email_with_retry(msg)
 
 
 # =======================
@@ -327,10 +512,17 @@ def create_appointment(request):
             name  = data.get("patient_name", "").strip()
             email = data.get("patient_email", "").strip()
 
-            # 1. Phone validation
+            # 1. Phone validation & normalization
             clean_phone = re.sub(r'\D', '', phone)
+            if clean_phone.startswith("92") and len(clean_phone) == 12:
+                clean_phone = "0" + clean_phone[2:]
+            elif clean_phone.startswith("0092") and len(clean_phone) == 14:
+                clean_phone = "0" + clean_phone[4:]
+            elif len(clean_phone) == 10 and clean_phone.startswith("3"):
+                clean_phone = "0" + clean_phone
+
             if len(clean_phone) != 11:
-                return JsonResponse({"error": "Phone must be exactly 11 digits."}, status=400)
+                return JsonResponse({"error": "Phone must be a valid 11-digit mobile number (e.g. 03001234567 or +92 300 1234567)."}, status=400)
 
             # 2. Service check
             service_id  = data.get("service")
@@ -340,8 +532,12 @@ def create_appointment(request):
 
             # 3. Date parsing — do this before any DB write so an invalid
             #    date can't leave behind an orphaned patient record
-            tz         = pytz.timezone("Asia/Karachi")
-            naive_date = datetime.strptime(data.get("date"), "%Y-%m-%d %H:%M")
+            tz = pytz.timezone("Asia/Karachi")
+            date_raw = str(data.get("date", "")).strip()
+            try:
+                naive_date = datetime.strptime(date_raw, "%Y-%m-%d %H:%M")
+            except ValueError:
+                naive_date = datetime.strptime(date_raw, "%Y-%m-%d %H:%M:%S")
             aware_date = tz.localize(naive_date)
 
             # 4. Find or create patient
@@ -388,6 +584,12 @@ def create_appointment(request):
                 )
             except Exception:
                 pass
+
+            # ── Send email notification to admin ──────────────────
+            try:
+                _send_admin_booking_email(appointment)
+            except Exception as mail_err:
+                print(f"ADMIN EMAIL ERROR: {mail_err}")
 
             service_map = {str(service_obj.id): service_obj.name}
             row = serialize_appointment(appointment, service_map)
@@ -597,96 +799,10 @@ from .models import Appointment
 #     except Exception as e:
 #         return JsonResponse({"error": str(e)}, status=500)
 
-@csrf_exempt
-def update_appointment_status(request, id):
-    if request.method != "POST":
-        return JsonResponse({"error": "Only POST allowed"}, status=405)
-
-    try:
-        data = json.loads(request.body)
-        status = data.get("status")  # Approved / Cancelled / Delay
-
-        # 1. FIXED: List mein 'Delay' shamil kar diya
-        if status not in ["Approved", "Cancelled", "Delay"]:
-            return JsonResponse({"error": "Invalid status value"}, status=400)
-
-        appointment = Appointment.objects(id=id).first()
-        if not appointment:
-            return JsonResponse({"error": "Appointment not found"}, status=404)
-
-        # 2. IMPORTANT: Check if already processed (taake bar bar email na jaye)
-        if appointment.status != "Pending":
-            return JsonResponse({"error": "This appointment has already been processed."}, status=400)
-
-        appointment.status = status
-        appointment.save()
-
-        # 3. Patient Linking (Only for Approved)
-        if status == "Approved" and not appointment.patient:
-            # from .models import Patient
-            # patient = Patient.objects(email=appointment.patient_email).first()
-            # if not patient:
-            #     last_patient_count = Patient.objects().count()
-            #     new_serial = last_patient_count + 1
-
-            #     patient = Patient(
-            #         id=appointment.id,
-            #         name=appointment.patient_name,
-            #         email=appointment.patient_email,
-            #         phone=appointment.patient_phone,
-            #         patient_serial=new_serial
-            #     ).save(force_insert=True)
-            # appointment.patient = patient
-            # appointment.save()
-
-            from .models import Patient
-            patient = Patient.objects(email=appointment.patient_email).first()
-            
-            # if not patient:
-            #     last_patient_count = Patient.objects().count()
-            #     new_serial = last_patient_count + 1
-
-            #     patient = Patient(
-            #         id=appointment.id,
-            #         name=appointment.patient_name,
-            #         email=appointment.patient_email,
-            #         phone=appointment.patient_phone,
-            #         patient_serial=new_serial,
-            #         appointments=[appointment] 
-            #     ).save(force_insert=True)
-            if not patient:
-                last_patient = Patient.objects().order_by('-patient_serial').first()
-                new_serial = (last_patient.patient_serial + 1) if last_patient and last_patient.patient_serial else 1
-
-                patient = Patient(
-                    name=appointment.patient_name,
-                    email=appointment.patient_email,
-                    phone=appointment.patient_phone,
-                    patient_serial=new_serial, # Yahan serial number save ho raha hai
-                    appointments=[appointment]
-                    ).save()
-            else:
-                # Agar patient pehle se hai, to naye appointment ko list mein add karein
-                if appointment not in patient.appointments:
-                    patient.appointments.append(appointment)
-                    patient.save()
-
-            # Appointment ko patient se link karein
-            appointment.patient = patient
-            appointment.save()
-
-        # 4. EMAIL LOGIC
-        if appointment.patient_email:
-            try:
-                _send_appointment_email(appointment, status)
-            except Exception as mail_err:
-                print(f"EMAIL ERROR: {mail_err}")
-
-        return JsonResponse({"message": "Status updated successfully!"})
-
-    except Exception as e:
-        print(f"Server Error: {e}")
-        return JsonResponse({"error": str(e)}, status=500)
+# ── DEPRECATED duplicate (removed — the active version is defined
+#    further down after _send_appointment_email).  The old code had a
+#    bug: Patient(...).save() returns None in MongoEngine, which set
+#    appointment.patient = None.  Keeping the clean version below. ──
 
 
 # views.py me ye add karein
@@ -1082,7 +1198,6 @@ def delete_patient(request, id):
 #      (same ID carried forward, never regenerated)
 #   3. Existing patient record matched by email — never duplicated
 # ══════════════════════════════════════════════════════════════════
-@csrf_exempt
 def _send_appointment_email(appointment, status):
     """
     Send a beautifully formatted HTML email to the patient when an admin
@@ -1107,7 +1222,7 @@ def _send_appointment_email(appointment, status):
     except Exception:
         date_str = "your scheduled time"
 
-    FROM_EMAIL = "DentisTree Dental Clinic <rababzahra425@gmail.com>"
+    FROM_EMAIL = "DentisTree Dental Clinic <dentistreeclinic123@gmail.com>"
     CLINIC_NAME = "DentisTree Dental Clinic"
     CLINIC_PHONE = "+92-XXX-XXXXXXX"   # update with real number
     CLINIC_ADDRESS = "DentisTree Dental Clinic, Pakistan"
@@ -1317,7 +1432,7 @@ def _send_appointment_email(appointment, status):
         to=[patient_email],
     )
     msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_email_with_retry(msg)
 
 
 @csrf_exempt

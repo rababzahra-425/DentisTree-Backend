@@ -106,16 +106,47 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
 
 # ── Email ────────────────────────────
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_SSL = False
-EMAIL_USE_TLS = True
-EMAIL_TIMEOUT = 30
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "app.smtp_backend.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "12"))
 
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
+EMAIL_HOST_USER = (os.environ.get("EMAIL_HOST_USER") or "").strip()
+# Gmail app passwords are sometimes copied with spaces; SMTP auth ignores them.
+EMAIL_HOST_PASSWORD = (os.environ.get("EMAIL_HOST_PASSWORD") or "").replace(" ", "")
+DEFAULT_FROM_EMAIL = (os.environ.get("DEFAULT_FROM_EMAIL") or "").strip() or (
+    f"DentisTree Dental Clinic <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else None
+)
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or EMAIL_HOST_USER or "").strip()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {
+            "format": "[{levelname}] {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "loggers": {
+        "app.email": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 # ── CORS / CSRF ──────────────────────
 _cors_env = os.environ.get("DJANGO_CORS_ORIGINS", "")

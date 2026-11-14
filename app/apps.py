@@ -6,15 +6,16 @@ class AppConfig(AppConfig):
 
     def ready(self):
         """Validate email configuration at startup."""
-        import os
-        user = os.environ.get("EMAIL_HOST_USER")
-        pw   = os.environ.get("EMAIL_HOST_PASSWORD")
+        import logging
+        from django.conf import settings
+
+        logger = logging.getLogger("app.email")
+        user = getattr(settings, "EMAIL_HOST_USER", None)
+        pw = getattr(settings, "EMAIL_HOST_PASSWORD", None)
         if not user or not pw:
-            print("=" * 60)
-            print("  EMAIL WARNING: EMAIL_HOST_USER or EMAIL_HOST_PASSWORD")
-            print("  is not set in the .env file. Email notifications")
-            print("  will NOT work until configured.")
-            print("  See: project/.env  Email section")
-            print("=" * 60)
+            logger.warning(
+                "EMAIL_HOST_USER or EMAIL_HOST_PASSWORD is not set. "
+                "Appointment email notifications will not be sent until configured."
+            )
         else:
-            print(f"Email configured for: {user}")
+            logger.info("Email configured for %s", user)

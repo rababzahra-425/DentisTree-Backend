@@ -55,8 +55,12 @@ class Appointment(Document):
     patient_phone = StringField()
     service = ReferenceField(Service, required=True)
     service_name = StringField(default="")  # denormalized for fast list reads
-    date = DateTimeField(required=True)  # date and time combined
-    status = StringField(choices=["Pending", "Approved", "Completed", "Cancelled","Delay"], default="Pending")
+    date = DateTimeField(required=True)  # original requested date and time
+    proposed_date = DateTimeField()  # admin-proposed reschedule date (Delay only)
+    status = StringField(
+        choices=["Pending", "Approved", "Completed", "Cancelled", "Delay", "Delayed"],
+        default="Pending",
+    )
     created_at = DateTimeField(default=datetime.datetime.utcnow)
 
     patient = ReferenceField('Patient')

@@ -1,4 +1,6 @@
 """Fast appointment list serialization (MongoEngine, no broken DBRef crashes)."""
+from datetime import datetime
+
 import pytz
 from .models import Appointment, Service
 
@@ -11,10 +13,76 @@ APPOINTMENT_LIST_FIELDS = (
     "service",
     "service_name",
     "date",
+    "proposed_date",
     "status",
 )
 
 PKT = pytz.timezone("Asia/Karachi")
+
+
+def display_status(status):
+    """Canonical UI/API status. Legacy `Delay` records show as Delayed."""
+    raw = (status or "Pending").strip()
+    if raw.lower() in ("delay", "delayed"):
+        return "Delayed"
+    return raw or "Pending"
+
+
+def _as_pkt(dt):
+    if not dt:
+        return None
+    if getattr(dt, "tzinfo", None) is None:
+        dt = pytz.utc.localize(dt)
+    return dt.astimezone(PKT)
+
+
+def format_proposed_date(dt):
+    """Long form for emails, e.g. Monday, 17 November 2026."""
+    pkt_dt = _as_pkt(dt)
+    if not pkt_dt:
+        return ""
+    try:
+        return pkt_dt.strftime("%A, %d %B %Y")
+    except Exception:
+        return str(dt)
+
+
+def _fmt_date_only(dt):
+    pkt_dt = _as_pkt(dt)
+    if not pkt_dt:
+        return ""
+    try:
+        return pkt_dt.strftime("%d %b %Y")
+    except Exception:
+        return str(dt)
+
+
+def parse_proposed_date(raw):
+    """
+    Parse admin-selected proposed date (YYYY-MM-DD, optionally with time).
+    Must be today or later in Asia/Karachi. Does not replace the original slot.
+    """
+    value = str(raw or "").strip()
+    if not value:
+        raise ValueError("A proposed appointment date is required.")
+
+    naive = None
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            naive = datetime.strptime(value, fmt)
+            break
+        except ValueError:
+            continue
+    if naive is None:
+        raise ValueError("Proposed date must be in YYYY-MM-DD format.")
+
+    if naive.hour == 0 and naive.minute == 0 and naive.second == 0:
+        naive = naive.replace(hour=9, minute=0)
+    aware = PKT.localize(naive)
+    today = datetime.now(PKT).date()
+    if aware.date() < today:
+        raise ValueError("Proposed appointment date cannot be in the past.")
+    return aware
 
 
 def _fmt_date(dt):
@@ -70,7 +138,8 @@ def serialize_appointment(appt, service_map):
         "patient_phone": appt.patient_phone or "",
         "service": service_name,
         "date": _fmt_date(appt.date),
-        "status": appt.status or "Pending",
+        "proposed_date": _fmt_date_only(getattr(appt, "proposed_date", None)),
+        "status": display_status(appt.status),
     }
 
 
@@ -88,20 +157,31 @@ def fetch_appointments_list(limit=500):
     Only loads fields needed for the admin list.
     """
     limit = min(max(int(limit), 1), 1000)
-    base = Appointment.objects.no_dereference().only(*APPOINTMENT_LIST_FIELDS)
 
     pending_docs = list(
-        base.filter(status="Pending").order_by("-id")[:limit]
+        Appointment.objects.no_dereference()
+        .only(*APPOINTMENT_LIST_FIELDS)
+        .filter(status="Pending")
+        .order_by("-id")[:limit]
     )
     remaining = max(limit - len(pending_docs), 0)
     other_docs = []
     if remaining > 0:
         other_docs = list(
-            base.filter(status__ne="Pending")
+            Appointment.objects.no_dereference()
+            .only(*APPOINTMENT_LIST_FIELDS)
+            .filter(status__ne="Pending")
             .order_by("-appointment_serial", "-id")[:remaining]
         )
 
-    all_docs = pending_docs + other_docs
+    seen = set()
+    all_docs = []
+    for doc in pending_docs + other_docs:
+        key = str(doc.id)
+        if key in seen:
+            continue
+        seen.add(key)
+        all_docs.append(doc)
     service_map = build_service_map(all_docs)
     rows = [serialize_appointment(a, service_map) for a in all_docs]
     return sort_appointment_rows(rows)

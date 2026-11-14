@@ -13,7 +13,7 @@ from .models import (
     InventoryItem,
     Expense,
 )
-from .appointment_helpers import service_id_from_ref, build_service_map
+from .appointment_helpers import service_id_from_ref, build_service_map, display_status
 
 
 def fetch_dashboard_data():
@@ -112,7 +112,7 @@ def fetch_dashboard_data():
             "patient_name": a.patient_name or "—",
             "service": sname,
             "date": _fmt_dt(a.date),
-            "status": a.status or "Pending",
+            "status": display_status(a.status),
             "appointment_serial": a.appointment_serial,
         })
 

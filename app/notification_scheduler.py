@@ -109,7 +109,7 @@ def _process_appointment_reminders():
     candidates = Appointment.objects(
         date__gte=today_start,
         date__lt=today_end,
-        status__in=["Pending", "Approved", "Delay"],
+        status__in=["Pending", "Approved", "Delay", "Delayed"],
     ).only(
         "patient_name",
         "service_name",

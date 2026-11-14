@@ -20,6 +20,7 @@ def _serialize_last_appointment(appt, service_map):
         "serial": row["appointment_serial"],
         "service": row["service"],
         "date": row["date"],
+        "proposed_date": row.get("proposed_date") or "",
         "status": row["status"],
     }
 
@@ -51,6 +52,7 @@ def fetch_patients_list(limit=500):
         "service",
         "service_name",
         "date",
+        "proposed_date",
         "status",
         "patient",
     )
